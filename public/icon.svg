@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#grad)" />
+  <!-- Store Roof Icon -->
+  <path d="M110 200 L256 100 L402 200 L380 200 L256 120 L132 200 Z" fill="#ffffff" opacity="0.9" />
+  <!-- Store Building -->
+  <rect x="130" y="210" width="252" height="190" rx="16" fill="#ffffff" />
+  <!-- Door & Windows -->
+  <rect x="220" y="270" width="72" height="130" rx="8" fill="#1e293b" />
+  <rect x="160" y="250" width="40" height="50" rx="6" fill="#3b82f6" />
+  <rect x="312" y="250" width="40" height="50" rx="6" fill="#3b82f6" />
+  <!-- Letters VG -->
+  <text x="256" y="340" font-family="Arial, sans-serif" font-size="28" font-weight="900" fill="#ffffff" text-anchor="middle">VG</text>
+</svg>

@@ -1,0 +1,39 @@
+{
+  "name": "Vertu De Gloire Market — Multi-Shop POS",
+  "short_name": "VGM POS",
+  "description": "Système de gestion multi-boutiques, stocks, caisse et point de vente (POS)",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity", "shopping"],
+  "shortcuts": [
+    {
+      "name": "Point de Vente (POS)",
+      "url": "/?tab=pos",
+      "description": "Ouvrir directement la caisse enregistreuse"
+    },
+    {
+      "name": "Stocks Multi-Boutiques",
+      "url": "/?tab=stock",
+      "description": "Consulter les disponibilités par boutique"
+    }
+  ]
+}
