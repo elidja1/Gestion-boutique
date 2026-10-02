@@ -62,30 +62,26 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
     return st === 0;
   });
 
-  const totalExpenses = state.expenses
-    .filter((e) => isGlobalView || e.store_id === state.activeStoreId)
-    .reduce((acc, e) => acc + e.amount, 0);
-
-  const estimatedProfit = Math.max(0, todayRevenue * 0.35 - totalExpenses);
+  const estimatedProfit = Math.round(todayRevenue * 0.35);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Top Welcome Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 p-6 rounded-2xl text-white shadow-sm relative overflow-hidden border border-slate-800">
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 bg-blue-500/30 border border-blue-400/40 text-blue-300 text-xs font-bold rounded-full">
-              👑 Vue Dirigeant Entreprise
+            <span className="px-2.5 py-0.5 bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold rounded-md">
+              Vue Dirigeant
             </span>
             <span className="text-xs text-slate-400">• {state.company.name}</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-            Bonjour {currentUser.full_name.split(' ')[0]} 👋
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+            Bonjour {currentUser.full_name.split(' ')[0]}
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
             {isGlobalView
-              ? "Voici l'activité consolidée de l'ensemble de vos 4 boutiques aujourd'hui."
-              : `Focus spécifique sur l'activité de la boutique : ${activeStore?.name}`}
+              ? "Activité consolidée de l'ensemble des boutiques aujourd'hui."
+              : `Activité en direct pour : ${activeStore?.name}`}
           </p>
         </div>
 
@@ -93,97 +89,93 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
         <div className="flex items-center gap-2.5 relative z-10">
           <button
             onClick={() => onNavigateTab('pos')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-blue-600/30"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
           >
             <ShoppingCart className="w-4 h-4" />
             <span>Nouvelle Vente (POS)</span>
           </button>
           <button
-            onClick={() => onNavigateTab('transfers')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl text-xs font-bold transition-all"
+            onClick={() => onNavigateTab('products')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs font-bold transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>Transfert Stock</span>
+            <span>Nouveau Produit</span>
           </button>
         </div>
-
-        {/* Subtle decorative background glow */}
-        <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       {/* Primary KPI Cards Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* CA Aujourd'hui */}
-        <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              💰 CA Aujourd'hui
+              Chiffre d'Affaires
             </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-slate-950">
+          <div className="text-lg sm:text-xl font-black text-slate-900">
             {formatCurrency(todayRevenue)}
           </div>
           <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold mt-1.5">
             <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>+14.2% vs hier</span>
+            <span>Aujourd'hui</span>
           </div>
         </div>
 
         {/* Ventes */}
-        <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              🛒 Ventes
+              Ventes
             </span>
             <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
               <ShoppingCart className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-slate-950">
+          <div className="text-lg sm:text-xl font-black text-slate-900">
             {todaySalesCount}
           </div>
           <div className="text-[10px] text-slate-400 mt-1.5">
-            Panier moy: {formatCurrency(todaySalesCount ? Math.round(todayRevenue / todaySalesCount) : 0)}
+            Moyenne: {formatCurrency(todaySalesCount ? Math.round(todayRevenue / todaySalesCount) : 0)}
           </div>
         </div>
 
         {/* Produits */}
-        <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              📦 Produits
+              Catalogue
             </span>
             <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
               <Package className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-slate-950">
+          <div className="text-lg sm:text-xl font-black text-slate-900">
             {totalProducts}
           </div>
           <div className="text-[10px] text-slate-400 mt-1.5">
-            {state.categories.length} catégories actives
+            {state.categories.length} catégories
           </div>
         </div>
 
         {/* Boutiques */}
-        <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              🏪 Boutiques
+              Boutiques
             </span>
             <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <Store className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-slate-950">
+          <div className="text-lg sm:text-xl font-black text-slate-900">
             {state.stores.length}
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold mt-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>4 Ouvertes</span>
+          <div className="text-[10px] text-slate-400 mt-1.5">
+            Points de vente
           </div>
         </div>
 
@@ -289,10 +281,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
               <div className="bg-amber-500 h-full" style={{ width: '11%' }} title="Porto-Novo 11%" />
             </div>
             <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-600" /> Ekpè (42%)</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-500" /> Ganhi (30%)</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Calavi (17%)</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> P-Novo (11%)</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-600" /> Ekpè</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-500" /> Ganhi</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Calavi</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> Porto-Novo</span>
             </div>
           </div>
         </div>
@@ -311,7 +303,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
                 onClick={() => onNavigateTab('staff')}
                 className="text-xs text-blue-600 hover:text-blue-700 font-bold"
               >
-                Objectifs
+                Collaborateurs
               </button>
             </div>
 
@@ -357,19 +349,19 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
           </div>
 
           <div className="p-3 bg-blue-50 rounded-2xl border border-blue-100 flex items-center justify-between text-xs text-blue-900 mt-4">
-            <span className="font-semibold">Bénéfice Net Estimé :</span>
+            <span className="font-semibold">Marge Brute Estimée :</span>
             <span className="font-black text-sm text-blue-700">{formatCurrency(estimatedProfit)}</span>
           </div>
         </div>
       </div>
 
-      {/* Bottom Row: Top Selling Products & Real-time Activity Feed */}
+      {/* Bottom Row: Top Selling Products & Real-time Sales Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Top Products */}
         <div className="lg:col-span-6 bg-white rounded-3xl border border-slate-200 p-5 shadow-xs">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
             <h3 className="text-sm font-black text-slate-900">
-              🔥 Produits les Plus Vendus
+              🔥 Produits au Catalogue
             </h3>
             <button
               onClick={() => onNavigateTab('products')}
@@ -380,62 +372,74 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
           </div>
 
           <div className="space-y-2">
-            {state.products.slice(0, 4).map((prod, idx) => (
-              <div
-                key={prod.id}
-                className="flex items-center justify-between p-2.5 hover:bg-slate-50 rounded-2xl transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
-                    #{idx + 1}
+            {state.products.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">Aucun produit dans le catalogue</p>
+            ) : (
+              state.products.slice(0, 4).map((prod, idx) => (
+                <div
+                  key={prod.id}
+                  className="flex items-center justify-between p-2.5 hover:bg-slate-50 rounded-2xl transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
+                      #{idx + 1}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">{prod.name}</p>
+                      <p className="text-[10px] text-slate-400">
+                        SKU: {prod.sku} • Stock: {prod.total_stock} {prod.unit}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">{prod.name}</p>
-                    <p className="text-[10px] text-slate-400">
-                      SKU: {prod.sku} • Stock total: {prod.total_stock}
-                    </p>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-slate-900">
+                      {formatCurrency(prod.selling_price)}
+                    </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs font-black text-slate-900">
-                    {formatCurrency(prod.selling_price)}
-                  </span>
-                  <p className="text-[10px] text-emerald-600 font-semibold">Forte rotation</p>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
-        {/* Live Audit Log Preview */}
+        {/* Recent Sales Preview */}
         <div className="lg:col-span-6 bg-white rounded-3xl border border-slate-200 p-5 shadow-xs">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
             <h3 className="text-sm font-black text-slate-900">
-              📋 Activités Récentes en Direct
+              🧾 Dernières Ventes en Caisse
             </h3>
             <button
-              onClick={() => onNavigateTab('audit')}
+              onClick={() => onNavigateTab('sales')}
               className="text-xs text-blue-600 hover:text-blue-700 font-bold"
             >
-              Historique complet
+              Toutes les ventes
             </button>
           </div>
 
           <div className="space-y-3">
-            {state.auditLogs.slice(0, 4).map((log) => (
-              <div key={log.id} className="flex items-start gap-3 text-xs">
-                <div className="mt-1 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                <div className="flex-1">
-                  <p className="font-semibold text-slate-800">
-                    <span className="text-blue-600 font-bold">{log.user_name}</span> : {log.details}
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {log.store_name ? `Boutique: ${log.store_name} • ` : ''}
-                    {new Date(log.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+            {filteredSales.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">Aucune vente enregistrée pour le moment</p>
+            ) : (
+              filteredSales.slice(0, 4).map((sale) => (
+                <div key={sale.id} className="flex items-center justify-between p-2.5 hover:bg-slate-50 rounded-2xl transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">{sale.invoice_number}</p>
+                      <p className="text-[10px] text-slate-400">
+                        {sale.store_name} • {new Date(sale.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-emerald-600">
+                      {formatCurrency(sale.total_amount)}
+                    </span>
+                    <p className="text-[10px] text-slate-400">{sale.payment_method}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

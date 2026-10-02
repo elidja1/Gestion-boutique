@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
-import { Search, Package, Receipt, Users, Store, X, ArrowRight } from 'lucide-react';
+import { Search, Package, Receipt, Store, X, ArrowRight } from 'lucide-react';
 
 interface QuickSearchModalProps {
   isOpen: boolean;
@@ -55,14 +55,6 @@ export const QuickSearchModal: React.FC<QuickSearchModalProps> = ({
       )
     : [];
 
-  const matchingCustomers = cleanQuery
-    ? state.customers.filter(
-        (c) =>
-          `${c.first_name} ${c.last_name}`.toLowerCase().includes(cleanQuery) ||
-          c.phone.includes(cleanQuery)
-      )
-    : [];
-
   const matchingStores = cleanQuery
     ? state.stores.filter(
         (s) =>
@@ -80,7 +72,7 @@ export const QuickSearchModal: React.FC<QuickSearchModalProps> = ({
           <Search className="w-5 h-5 text-blue-600" />
           <input
             type="text"
-            placeholder="Rechercher produit, code-barres, facture, client, boutique..."
+            placeholder="Rechercher produit, code-barres, facture, boutique..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
@@ -106,11 +98,10 @@ export const QuickSearchModal: React.FC<QuickSearchModalProps> = ({
         <div className="max-h-96 overflow-y-auto p-3 divide-y divide-slate-100">
           {!query ? (
             <div className="py-12 text-center text-xs text-slate-400">
-              Tapez un mot-clé (ex: <span className="font-semibold text-slate-600">Cahier</span>, <span className="font-semibold text-slate-600">VGM01</span>, <span className="font-semibold text-slate-600">Jean</span>, <span className="font-semibold text-slate-600">6151234</span>)
+              Tapez un mot-clé (ex: <span className="font-semibold text-slate-600">Cahier</span>, <span className="font-semibold text-slate-600">VGM01</span>, <span className="font-semibold text-slate-600">FAC-</span>)
             </div>
           ) : matchingProducts.length === 0 &&
             matchingSales.length === 0 &&
-            matchingCustomers.length === 0 &&
             matchingStores.length === 0 ? (
             <div className="py-10 text-center text-xs text-slate-400">
               Aucun résultat trouvé pour « {query} »
@@ -173,36 +164,6 @@ export const QuickSearchModal: React.FC<QuickSearchModalProps> = ({
                       </div>
                       <span className="text-xs font-bold text-emerald-600">
                         {formatCurrency(s.total_amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Customers */}
-              {matchingCustomers.length > 0 && (
-                <div className="py-2">
-                  <div className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-purple-600" />
-                    Clients ({matchingCustomers.length})
-                  </div>
-                  {matchingCustomers.slice(0, 3).map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => {
-                        onSelectTab('customers');
-                        onClose();
-                      }}
-                      className="flex items-center justify-between px-3 py-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors"
-                    >
-                      <div>
-                        <p className="text-xs font-bold text-slate-800">
-                          {c.first_name} {c.last_name}
-                        </p>
-                        <p className="text-[10px] text-slate-400">📞 {c.phone} • {c.city}</p>
-                      </div>
-                      <span className="text-xs font-semibold text-amber-600">
-                        ⭐ {c.loyalty_points} pts
                       </span>
                     </div>
                   ))}

@@ -1,6 +1,20 @@
 // Types & Interfaces for Multi-Shop Boutique Management System (Vertu De Gloire Market)
 
-export type UserRoleType = 'OWNER' | 'MANAGER' | 'SELLER' | 'STOCK_AGENT' | 'ACCOUNTANT';
+export type UserRoleType = 'SUPERADMIN' | 'OWNER' | 'MANAGER' | 'SELLER' | 'STOCK_AGENT' | 'ACCOUNTANT';
+
+export type SyncStatusType = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
+
+export interface PushSubscriptionItem {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  user_id?: string;
+  user_name?: string;
+  device_info?: string;
+  created_at: string;
+}
 
 export interface Company {
   id: string;
@@ -87,6 +101,13 @@ export interface Supplier {
 
 export type ProductUnitType = 'Pièce' | 'Kg' | 'Gramme' | 'Litre' | 'Paquet' | 'Carton' | 'Mètre' | 'Boîte';
 
+export interface PriceTier {
+  id: string;
+  quantity: number; // e.g. 2.5 (Kg or pieces)
+  price: number; // e.g. 8500 (FCFA)
+  label?: string; // e.g. "Palier 2.5 Kg"
+}
+
 export interface Product {
   id: string;
   company_id: string;
@@ -97,16 +118,22 @@ export interface Product {
   barcode: string;
   description?: string;
   brand?: string;
-  unit: ProductUnitType | string; // 'Pièce', 'Kg', 'Litre', etc.
-  is_weight_based?: boolean; // true si vendu au poids/volume (ex: 0.5 kg, 1.25 kg)
-  is_perishable: boolean; // Produit périssable / conservable ou non
-  expiry_date?: string | null; // Date de péremption / DLUO
+  unit: ProductUnitType | string; // 'Pièce', 'Kg'
+  is_weight_based?: boolean; // true si vendu au poids (Kg)
+  is_perishable: boolean; // Produit périssable ou non
+  expiry_date?: string | null; // Date de péremption
   purchase_price: number; // Prix d'achat unitaire ou au kg
-  selling_price: number; // Prix de vente unitaire ou au kg
+  selling_price: number; // Prix de vente normal unitaire ou au kg
   promo_price?: number | null;
   min_stock_alert: number;
   image_url?: string;
   is_active: boolean;
+  // Vente au Carton
+  carton_price?: number | null; // Prix de vente d'un carton
+  carton_weight_kg?: number | null; // Poids d'un carton en Kg
+  carton_stock?: number | null; // Stock en nombre de cartons
+  // Tarifs réduits & Paliers personnalisés
+  price_tiers?: PriceTier[];
   // Dynamic or joined
   category_name?: string;
   supplier_name?: string;
@@ -145,6 +172,7 @@ export interface CartItem {
   unit_price: number; // Prix par unité ou par kg
   discount_amount: number;
   total_price: number;
+  explanation?: string;
 }
 
 export type PaymentMethod = 'CASH' | 'MTN_MOMO' | 'MOOV_MONEY' | 'WAVE' | 'CARD' | 'CREDIT' | 'SPLIT';

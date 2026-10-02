@@ -17,6 +17,7 @@ import {
   Phone,
   Edit2,
   Power,
+  Trash2,
   BarChart3,
 } from 'lucide-react';
 
@@ -25,10 +26,12 @@ interface StoreListProps {
 }
 
 export const StoreList: React.FC<StoreListProps> = ({ onNavigateTab }) => {
-  const { state, addStore, updateStore, setActiveStoreId } = useAppStore();
+  const { state, currentUser, addStore, updateStore, deleteStore, setActiveStoreId } = useAppStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
+
+  const canManage = currentUser.role_code === 'SUPERADMIN' || currentUser.role_code === 'OWNER';
 
   const handleCreateNew = () => {
     setEditingStore(null);
@@ -45,6 +48,16 @@ export const StoreList: React.FC<StoreListProps> = ({ onNavigateTab }) => {
       ...store,
       is_active: !store.is_active,
     });
+  };
+
+  const handleDelete = (store: Store) => {
+    if (state.stores.length <= 1) {
+      alert('Action impossible : Vous devez conserver au moins une boutique active dans le système.');
+      return;
+    }
+    if (confirm(`⚠️ ATTENTION : Êtes-vous sûr de vouloir supprimer définitivement la boutique « ${store.name} » (${store.code}) ?\n\nCette action supprimera également les stocks et caisses rattachés dans la base de données.`)) {
+      deleteStore(store.id);
+    }
   };
 
   const handleSave = (store: Store) => {
@@ -173,13 +186,15 @@ export const StoreList: React.FC<StoreListProps> = ({ onNavigateTab }) => {
               </button>
 
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => handleEdit(store)}
-                  className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-                  title="Modifier"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
+                {canManage && (
+                  <button
+                    onClick={() => handleEdit(store)}
+                    className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                    title="Modifier"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={() => handleToggleActive(store)}
                   className={`p-2 rounded-xl transition-colors ${
@@ -191,6 +206,16 @@ export const StoreList: React.FC<StoreListProps> = ({ onNavigateTab }) => {
                 >
                   <Power className="w-3.5 h-3.5" />
                 </button>
+                {canManage && (
+                  <button
+                    onClick={() => handleDelete(store)}
+                    disabled={state.stores.length <= 1}
+                    className="p-2 text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors"
+                    title={state.stores.length <= 1 ? 'Impossible de supprimer la seule boutique' : 'Supprimer définitivement la boutique'}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           </div>

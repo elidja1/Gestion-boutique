@@ -80,3 +80,61 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
+// Push notification received in background
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'Vertu De Gloire Market',
+    body: 'Nouvelle alerte du système POS.',
+    url: '/',
+  };
+
+  try {
+    if (event.data) {
+      const payload = event.data.json();
+      data = { ...data, ...payload };
+    }
+  } catch (e) {
+    if (event.data) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/icons/icon-192x192.png',
+    badge: '/favicon.ico',
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/',
+    },
+    actions: [
+      { action: 'open', title: 'Ouvrir' },
+      { action: 'close', title: 'Fermer' },
+    ],
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+// Notification click event handler
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'close') return;
+
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

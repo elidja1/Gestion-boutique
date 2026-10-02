@@ -19,10 +19,11 @@ import {
   BadgeDollarSign,
   Target,
   X,
+  Trash2,
 } from 'lucide-react';
 
 export const StaffList: React.FC = () => {
-  const { state, addStaff } = useAppStore();
+  const { state, currentUser, addStaff, deleteStaff } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,6 +46,16 @@ export const StaffList: React.FC = () => {
       u.phone.includes(searchQuery)
   );
 
+  const handleDeleteStaff = (staff: UserProfile) => {
+    if (staff.role_code === 'OWNER' || staff.role_code === 'SUPERADMIN') {
+      alert('Impossible de supprimer un compte Propriétaire / Administrateur.');
+      return;
+    }
+    if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement le compte collaborateur de « ${staff.full_name} » (${staff.code}) ?`)) {
+      deleteStaff(staff.id);
+    }
+  };
+
   const handleCreateStaff = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName || !phone) return;
@@ -54,14 +65,21 @@ export const StaffList: React.FC = () => {
     }
     setPasswordError('');
 
+    const resolvedRoleId =
+      roleCode === 'OWNER'
+        ? 'c0000000-0000-4000-8000-000000000001'
+        : roleCode === 'MANAGER'
+        ? 'c0000000-0000-4000-8000-000000000002'
+        : 'c0000000-0000-4000-8000-000000000003';
+
     const newStaff: UserProfile = {
-      id: `u-${Date.now()}`,
-      company_id: state.company.id,
-      store_id: roleCode === 'OWNER' || roleCode === 'ACCOUNTANT' ? null : storeId,
-      role_id: `b-${roleCode}`,
+      id: crypto.randomUUID(),
+      company_id: state.company.id || 'a0000000-0000-4000-8000-000000000001',
+      store_id: storeId || state.stores[0]?.id || 'b0000000-0000-4000-8000-000000000001',
+      role_id: resolvedRoleId,
       role_code: roleCode,
-      code: `AGENT-0${Math.floor(5 + Math.random() * 5)}`,
-      full_name: fullName,
+      code: `VEN-0${Math.floor(2 + Math.random() * 8)}`,
+      full_name: fullName.trim(),
       email: email || `${fullName.toLowerCase().replace(/\s+/g, '.')}@vertudegloire.bj`,
       phone,
       password: password,
@@ -154,10 +172,21 @@ export const StaffList: React.FC = () => {
                     </div>
                   </div>
 
-                  <span className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 rounded-full text-[10px] font-bold text-slate-800">
-                    {getRoleIcon(staff.role_code)}
-                    <span>{staff.role_code}</span>
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 rounded-full text-[10px] font-bold text-slate-800">
+                      {getRoleIcon(staff.role_code)}
+                      <span>{staff.role_code}</span>
+                    </span>
+                    {staff.role_code !== 'OWNER' && staff.role_code !== 'SUPERADMIN' && (
+                      <button
+                        onClick={() => handleDeleteStaff(staff)}
+                        title="Supprimer ce collaborateur"
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1 text-xs text-slate-600 pt-3">
@@ -248,11 +277,7 @@ export const StaffList: React.FC = () => {
                     onChange={(e) => setRoleCode(e.target.value as any)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 outline-none"
                   >
-                    <option value="SELLER">🛒 Vendeur / Caisse</option>
-                    <option value="MANAGER">🧑‍💼 Manager Boutique</option>
-                    <option value="STOCK_AGENT">📦 Agent de Stock</option>
-                    <option value="ACCOUNTANT">💰 Comptable</option>
-                    <option value="OWNER">👑 Propriétaire</option>
+                    <option value="SELLER">🛒 Vendeur / Caisse (Accès Vente & Réception)</option>
                   </select>
                 </div>
 

@@ -53,11 +53,11 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigateTa
             <span>Ouvrir Caisse / POS</span>
           </button>
           <button
-            onClick={() => onNavigateTab('cash')}
-            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl text-xs font-bold transition-all flex items-center gap-2"
+            onClick={() => onNavigateTab('profits')}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-bold transition-all shadow-md flex items-center gap-2"
           >
-            <Calculator className="w-4 h-4" />
-            <span>Clôture Caisse</span>
+            <TrendingUp className="w-4 h-4" />
+            <span>Bénéfices & Stats</span>
           </button>
         </div>
       </div>
@@ -89,11 +89,11 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ onNavigateTa
         </div>
 
         <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-bold text-slate-500 uppercase">🔄 Transferts Actifs</span>
+          <span className="text-xs font-bold text-slate-500 uppercase">📦 Articles Disponibles</span>
           <p className="text-xl font-black text-blue-600 mt-1">
-            {state.transfers.filter(t => t.source_store_id === currentStore.id || t.destination_store_id === currentStore.id).length}
+            {state.products.length}
           </p>
-          <span className="text-[11px] text-slate-400">En cours de traitement</span>
+          <span className="text-[11px] text-slate-400">Total au catalogue</span>
         </div>
       </div>
 

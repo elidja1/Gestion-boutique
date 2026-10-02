@@ -10,33 +10,28 @@ import {
   Package,
   Layers,
   ArrowLeftRight,
-  Calculator,
+  TrendingUp,
   Receipt,
   Users,
-  Truck,
   DollarSign,
   UserCheck,
   Star,
   Activity,
   Settings,
+  ShieldAlert,
   X,
 } from 'lucide-react';
 
 export type NavTabType =
+  | 'developer'
   | 'dashboard'
   | 'stores'
   | 'pos'
   | 'products'
   | 'stock'
-  | 'transfers'
-  | 'cash'
   | 'sales'
-  | 'customers'
-  | 'suppliers'
-  | 'expenses'
+  | 'profits'
   | 'staff'
-  | 'reviews'
-  | 'audit'
   | 'settings';
 
 interface SidebarProps {
@@ -71,21 +66,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return storeQty <= p.min_stock_alert;
   }).length;
 
-  const pendingTransfers = state.transfers.filter((t) => t.status === 'PENDING').length;
-
   const navItems: NavItem[] = [
+    {
+      id: 'developer',
+      label: 'Console Développeur',
+      icon: <ShieldAlert className="w-4 h-4 text-indigo-400" />,
+      roles: ['SUPERADMIN'],
+      badge: 'DEV',
+    },
     {
       id: 'dashboard',
       label: 'Tableau de bord',
       icon: <LayoutDashboard className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'ACCOUNTANT'],
+      roles: ['OWNER'],
     },
     {
       id: 'pos',
-      label: 'Caisse / POS Express',
+      label: 'Caisse / Vente Express',
       icon: <ShoppingCart className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'SELLER'],
-      badge: 'Vente',
+      roles: ['OWNER', 'SELLER'],
+      badge: 'Caisse',
     },
     {
       id: 'stores',
@@ -97,75 +97,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'products',
       label: 'Produits & Prix',
       icon: <Package className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'STOCK_AGENT', 'SELLER'],
+      roles: ['OWNER'],
     },
     {
       id: 'stock',
       label: 'Stocks & Mouvements',
       icon: <Layers className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'STOCK_AGENT'],
+      roles: ['OWNER'],
       badge: lowStockCount > 0 ? lowStockCount : undefined,
     },
     {
-      id: 'transfers',
-      label: 'Transferts',
-      icon: <ArrowLeftRight className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'STOCK_AGENT'],
-      badge: pendingTransfers > 0 ? `${pendingTransfers}` : undefined,
-    },
-    {
-      id: 'cash',
-      label: 'Caisse & Clôtures',
-      icon: <Calculator className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'ACCOUNTANT'],
-    },
-    {
       id: 'sales',
-      label: currentRole === 'SELLER' ? 'Mes Ventes' : 'Ventes & Factures',
+      label: 'Ventes & Factures',
       icon: <Receipt className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'SELLER', 'ACCOUNTANT'],
+      roles: ['OWNER'],
     },
     {
-      id: 'customers',
-      label: 'Clients & Fidélité',
-      icon: <Users className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'SELLER'],
-    },
-    {
-      id: 'suppliers',
-      label: 'Fournisseurs & Achats',
-      icon: <Truck className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'ACCOUNTANT'],
-    },
-    {
-      id: 'expenses',
-      label: 'Dépenses & Finance',
-      icon: <DollarSign className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'ACCOUNTANT'],
+      id: 'profits',
+      label: 'Bénéfices & Rentabilité',
+      icon: <TrendingUp className="w-4 h-4 text-emerald-400" />,
+      roles: ['OWNER'],
     },
     {
       id: 'staff',
-      label: 'Employés & Rôles',
+      label: 'Collaborateurs & Accès',
       icon: <UserCheck className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER'],
-    },
-    {
-      id: 'reviews',
-      label: 'Avis Clients',
-      icon: <Star className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER'],
-    },
-    {
-      id: 'audit',
-      label: "Journal d'activité",
-      icon: <Activity className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER', 'ACCOUNTANT'],
+      roles: ['OWNER'],
     },
     {
       id: 'settings',
-      label: 'Paramètres & Supabase',
+      label: 'Paramètres Entreprise',
       icon: <Settings className="w-4 h-4" />,
-      roles: ['OWNER', 'MANAGER'],
+      roles: ['OWNER'],
     },
   ];
 
@@ -213,12 +176,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Store Context Pill in Sidebar */}
         <div className="px-4 py-3 bg-slate-950/50 border-b border-slate-800/80">
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="font-medium">Boutique Active:</span>
+            <span className="font-medium">
+              {currentRole === 'SUPERADMIN' ? 'Profil Actif:' : 'Boutique Active:'}
+            </span>
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           </div>
           <p className="text-xs font-bold text-white mt-0.5 truncate">
-            {state.activeStoreId === 'ALL'
-              ? 'Toutes les Boutiques (4)'
+            {currentRole === 'SUPERADMIN'
+              ? '🛠️ Console Développeur'
+              : state.activeStoreId === 'ALL'
+              ? `Toutes les Boutiques (${state.stores.length})`
               : state.stores.find((s) => s.id === state.activeStoreId)?.name || 'Boutique'}
           </p>
         </div>
@@ -236,7 +203,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all group ${
                   isActive
-                    ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
+                    ? item.id === 'developer'
+                      ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/30'
+                      : 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
                     : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                 }`}
               >
@@ -251,10 +220,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
                       isActive
                         ? 'bg-white/20 text-white'
+                        : item.id === 'developer'
+                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                         : item.id === 'stock'
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        : item.id === 'transfers'
-                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                         : 'bg-emerald-500/20 text-emerald-400'
                     }`}
                   >
@@ -277,7 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="font-bold text-white">{state.company.country}</span>
           </div>
           <div className="mt-2 text-[10px] text-slate-500 text-center">
-            v2.4.0 • Enterprise Edition
+            v2.5.0 • VGM Multi-Shop
           </div>
         </div>
       </aside>
