@@ -880,13 +880,31 @@ export async function syncStaffToSupabase(user: UserProfile): Promise<boolean> {
   const supabase = getSupabase();
   try {
     const validUserId = isValidUuid(user.id) ? user.id : crypto.randomUUID();
-    const validRoleId = isValidUuid(user.role_id)
-      ? user.role_id
-      : (user.role_code === 'OWNER'
-          ? 'c0000000-0000-4000-8000-000000000001'
-          : user.role_code === 'MANAGER'
-          ? 'c0000000-0000-4000-8000-000000000002'
-          : 'c0000000-0000-4000-8000-000000000003');
+    
+    // Resolve role ID to a valid UUID based on role code or existing role ID
+    let validRoleId = isValidUuid(user.role_id) ? user.role_id : null;
+    if (!validRoleId) {
+      switch (user.role_code) {
+        case 'OWNER':
+        case 'SUPERADMIN':
+          validRoleId = 'c0000000-0000-4000-8000-000000000001';
+          break;
+        case 'MANAGER':
+          validRoleId = 'c0000000-0000-4000-8000-000000000002';
+          break;
+        case 'STOCK_AGENT':
+          validRoleId = 'c0000000-0000-4000-8000-000000000004';
+          break;
+        case 'ACCOUNTANT':
+          validRoleId = 'c0000000-0000-4000-8000-000000000005';
+          break;
+        case 'SELLER':
+        default:
+          validRoleId = 'c0000000-0000-4000-8000-000000000003';
+          break;
+      }
+    }
+
     const validCompanyId = isValidUuid(user.company_id) ? user.company_id : 'a0000000-0000-4000-8000-000000000001';
     const validStoreId = isValidUuid(user.store_id) ? user.store_id : null;
 
@@ -903,6 +921,7 @@ export async function syncStaffToSupabase(user: UserProfile): Promise<boolean> {
       pin_code: user.pin_code || '1234',
       is_active: user.is_active ?? true,
       monthly_sales_target: user.monthly_sales_target || 1500000,
+      updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
 
     if (error) {
@@ -911,7 +930,7 @@ export async function syncStaffToSupabase(user: UserProfile): Promise<boolean> {
     }
     return true;
   } catch (err) {
-    console.warn('Sync staff to Supabase error:', err);
+    console.warn('Sync staff to Supabase exception:', err);
     return false;
   }
 }
@@ -922,23 +941,32 @@ export async function syncStaffToSupabase(user: UserProfile): Promise<boolean> {
 export async function syncStoreToSupabase(store: Store): Promise<boolean> {
   const supabase = getSupabase();
   try {
+    const validStoreId = isValidUuid(store.id) ? store.id : crypto.randomUUID();
+    const validCompanyId = isValidUuid(store.company_id) ? store.company_id : 'a0000000-0000-4000-8000-000000000001';
+
     const { error } = await supabase.from('stores').upsert({
-      id: store.id.startsWith('st-') ? undefined : store.id,
-      company_id: store.company_id,
+      id: validStoreId,
+      company_id: validCompanyId,
       code: store.code,
       name: store.name,
       address: store.address,
       city: store.city || 'Cotonou',
       phone: store.phone,
       email: store.email,
-      manager_name: store.manager_name,
-      opening_hours: store.opening_hours || '08h00 - 20h00',
+      manager_name: store.manager_name || null,
+      opening_hours: store.opening_hours || '08:00 - 20:30',
       description: store.description || null,
       is_active: store.is_active ?? true,
-    });
-    return !error;
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.warn('Sync store to Supabase error:', error);
+      return false;
+    }
+    return true;
   } catch (err) {
-    console.warn('Sync store to Supabase error:', err);
+    console.warn('Sync store to Supabase exception:', err);
     return false;
   }
 }
@@ -1048,15 +1076,27 @@ export async function syncClearAllNotificationsFromSupabase(): Promise<boolean> 
 }
 
 /**
- * Delete staff / user from Supabase
+ * Delete staff / user from Supabase (with fallback soft-delete if foreign keys exist)
  */
 export async function syncDeleteStaffFromSupabase(userId: string): Promise<boolean> {
   const supabase = getSupabase();
   try {
+    if (!isValidUuid(userId)) return false;
+
+    // 1. First attempt a hard delete
     const { error } = await supabase.from('users').delete().eq('id', userId);
-    return !error;
+    if (error) {
+      console.warn('Direct user deletion prevented by foreign key, falling back to soft-delete (is_active: false):', error.message);
+      // 2. Fallback: Deactivate user so they are hidden and disabled without corrupting sales audit trails
+      const { error: softErr } = await supabase.from('users').update({ is_active: false }).eq('id', userId);
+      return !softErr;
+    }
+    return true;
   } catch (err) {
     console.warn('Sync delete staff error:', err);
+    try {
+      await supabase.from('users').update({ is_active: false }).eq('id', userId);
+    } catch {}
     return false;
   }
 }
@@ -1067,6 +1107,8 @@ export async function syncDeleteStaffFromSupabase(userId: string): Promise<boole
 export async function syncDeleteProductFromSupabase(productId: string): Promise<boolean> {
   const supabase = getSupabase();
   try {
+    if (!isValidUuid(productId)) return false;
+
     // 1. Delete associated product stock entries
     await supabase.from('product_stocks').delete().eq('product_id', productId);
     
@@ -1098,11 +1140,13 @@ export async function syncDeleteProductFromSupabase(productId: string): Promise<
 }
 
 /**
- * Delete store from Supabase (clearing associated relations safely)
+ * Delete store from Supabase (clearing associated relations safely with soft-delete fallback)
  */
 export async function syncDeleteStoreFromSupabase(storeId: string): Promise<boolean> {
   const supabase = getSupabase();
   try {
+    if (!isValidUuid(storeId)) return false;
+
     // 1. Delete associated stock entries for this store
     await supabase.from('product_stocks').delete().eq('store_id', storeId);
 
@@ -1115,12 +1159,16 @@ export async function syncDeleteStoreFromSupabase(storeId: string): Promise<bool
     // 4. Delete the store itself
     const { error } = await supabase.from('stores').delete().eq('id', storeId);
     if (error) {
-      console.warn('Failed to delete store from Supabase:', error);
-      return false;
+      console.warn('Direct store deletion blocked by foreign key (e.g. historical sales), soft-deleting store (is_active: false):', error.message);
+      const { error: softErr } = await supabase.from('stores').update({ is_active: false }).eq('id', storeId);
+      return !softErr;
     }
     return true;
   } catch (err) {
     console.warn('Sync delete store error:', err);
+    try {
+      await supabase.from('stores').update({ is_active: false }).eq('id', storeId);
+    } catch {}
     return false;
   }
 }

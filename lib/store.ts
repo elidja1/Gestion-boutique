@@ -59,6 +59,7 @@ import {
   syncDeleteStoreFromSupabase,
   syncCategoryToSupabase,
   syncDeleteCategoryFromSupabase,
+  isValidUuid,
 } from './supabaseSync';
 
 const LOCAL_STORAGE_KEY = 'vgm_app_state_v4';
@@ -113,7 +114,7 @@ export const defaultState: AppState = {
 };
 
 type Listener = (state: AppState) => void;
-let globalState: AppState = defaultState;
+let globalState: AppState = typeof window !== 'undefined' ? loadState() : defaultState;
 const listeners = new Set<Listener>();
 
 function loadState(): AppState {
@@ -146,10 +147,9 @@ function loadState(): AppState {
       state.currentRole = 'SELLER';
     }
 
-    state.users = (state.users || []).map((u) => {
-      const r = (u.role_code || '').toUpperCase();
-      const normalizedRole: UserRoleType = (r === 'SUPERADMIN' || r === 'OWNER') ? r : 'SELLER';
-      return { ...u, role_code: normalizedRole };
+    state.users = (state.users || []).map((u): UserProfile => {
+      const r = (u.role_code || 'SELLER').toUpperCase() as UserRoleType;
+      return { ...u, role_code: r };
     });
 
     // Unified Stock Normalization: Ensure all products have consistent stock_by_store and carton_stock
@@ -211,7 +211,12 @@ function saveState(newState: AppState) {
 }
 
 export function useAppStore() {
-  const [state, setState] = useState<AppState>(globalState);
+  const [state, setState] = useState<AppState>(() => {
+    if (typeof window !== 'undefined') {
+      return loadState();
+    }
+    return globalState;
+  });
 
   const syncWithSupabase = useCallback(async () => {
     saveState({ ...globalState, syncStatus: 'syncing' });
@@ -226,18 +231,33 @@ export function useAppStore() {
         const remoteMovements = snapshot.movements !== undefined ? snapshot.movements : globalState.movements;
         const remoteNotifs = snapshot.notifications !== undefined ? snapshot.notifications : globalState.notifications;
 
-        // Normalize users to prevent non-admin roles
-        const normalizedUsers = remoteUsers.map((u) => {
-          const r = (u.role_code || '').toUpperCase();
-          const normalizedRole: UserRoleType = (r === 'SUPERADMIN' || r === 'OWNER') ? r : 'SELLER';
-          return { ...u, role_code: normalizedRole };
+        // Merge remote stores with local state so newly added stores are never lost
+        let effectiveStores = remoteStores;
+        if (remoteStores && remoteStores.length > 0) {
+          const remoteStoreIds = new Set(remoteStores.map((s) => s.id));
+          const localOnlyStores = (globalState.stores || []).filter((s) => !remoteStoreIds.has(s.id));
+          effectiveStores = [...remoteStores, ...localOnlyStores];
+        }
+
+        // Normalize users preserving UserRoleType
+        const normalizedUsers: UserProfile[] = remoteUsers.map((u): UserProfile => {
+          const r = (u.role_code || 'SELLER').toUpperCase() as UserRoleType;
+          return { ...u, role_code: r };
         });
+
+        // Merge remote users with local state so newly added staff are never lost
+        let effectiveUsers: UserProfile[] = normalizedUsers;
+        if (normalizedUsers && normalizedUsers.length > 0) {
+          const remoteUserIds = new Set(normalizedUsers.map((u) => u.id));
+          const localOnlyUsers = (globalState.users || []).filter((u) => !remoteUserIds.has(u.id));
+          effectiveUsers = [...normalizedUsers, ...localOnlyUsers];
+        }
 
         // Normalize products stock, carton & price_tiers
         const normalizedProducts = remoteProducts.map((p) => {
           const stockMap: Record<string, number> = { ...(p.stock_by_store || {}) };
           const hasExistingStock = Object.keys(stockMap).length > 0;
-          remoteStores.forEach((st) => {
+          effectiveStores.forEach((st) => {
             if (stockMap[st.id] === undefined) {
               // New stores get 0 stock (not a copy of total_stock which would inflate totals)
               stockMap[st.id] = 0;
@@ -266,7 +286,7 @@ export function useAppStore() {
         });
 
         // Sync HTML banner if broadcasted via Supabase
-        const bannerNotif = remoteNotifs.find((n) => n.id === '00000000-0000-4000-8000-0000000000bb' || n.type === 'SYSTEM_BANNER' as any);
+        const bannerNotif = remoteNotifs.find((n) => n.id === '00000000-0000-4000-8000-0000000000bb' || (n.type as string) === 'SYSTEM_BANNER');
         if (bannerNotif && typeof window !== 'undefined') {
           try {
             const bannerData = JSON.parse(bannerNotif.message);
@@ -303,8 +323,8 @@ export function useAppStore() {
         saveState({
           ...globalState,
           company: snapshot.company,
-          stores: remoteStores,
-          users: normalizedUsers,
+          stores: effectiveStores,
+          users: effectiveUsers,
           categories: snapshot.categories !== undefined ? snapshot.categories : globalState.categories,
           suppliers: snapshot.suppliers !== undefined ? snapshot.suppliers : globalState.suppliers,
           products: normalizedProducts,
@@ -1077,43 +1097,51 @@ export function useAppStore() {
   };
 
   const addStore = (store: Store) => {
+    const validStoreId = isValidUuid(store.id) ? store.id : crypto.randomUUID();
+    const validCompanyId = isValidUuid(store.company_id) ? store.company_id : (globalState.company.id || 'a0000000-0000-4000-8000-000000000001');
+    const cleanStore: Store = { ...store, id: validStoreId, company_id: validCompanyId };
+
     saveState({
       ...globalState,
-      stores: [...globalState.stores, store],
+      stores: [...globalState.stores, cleanStore],
       auditLogs: [
         {
           id: `aud-${Date.now()}`,
           user_name: getCurrentUser().full_name,
           action: 'CREATE_STORE',
           entity_type: 'Boutique',
-          details: `Création de la boutique : ${store.name}`,
+          details: `Création de la boutique : ${cleanStore.name} (${cleanStore.code})`,
           created_at: new Date().toISOString(),
         },
         ...globalState.auditLogs,
       ],
     });
 
-    syncStoreToSupabase(store).catch((e) => console.warn('Background Supabase store sync failed:', e));
+    syncStoreToSupabase(cleanStore).catch((e) => console.warn('Background Supabase store sync failed:', e));
   };
 
   const updateStore = (store: Store) => {
+    const validStoreId = isValidUuid(store.id) ? store.id : crypto.randomUUID();
+    const validCompanyId = isValidUuid(store.company_id) ? store.company_id : (globalState.company.id || 'a0000000-0000-4000-8000-000000000001');
+    const cleanStore: Store = { ...store, id: validStoreId, company_id: validCompanyId };
+
     saveState({
       ...globalState,
-      stores: globalState.stores.map((s) => (s.id === store.id ? store : s)),
+      stores: globalState.stores.map((s) => (s.id === store.id || s.id === cleanStore.id ? cleanStore : s)),
       auditLogs: [
         {
           id: `aud-${Date.now()}`,
           user_name: getCurrentUser().full_name,
           action: 'UPDATE_STORE',
           entity_type: 'Boutique',
-          details: `Modification de la boutique : ${store.name}`,
+          details: `Modification de la boutique : ${cleanStore.name} (Statut: ${cleanStore.is_active ? 'Ouverte' : 'Fermée'})`,
           created_at: new Date().toISOString(),
         },
         ...globalState.auditLogs,
       ],
     });
 
-    syncStoreToSupabase(store).catch((e) => console.warn('Background Supabase store update failed:', e));
+    syncStoreToSupabase(cleanStore).catch((e) => console.warn('Background Supabase store update failed:', e));
   };
 
   const deleteStore = (storeId: string) => {
@@ -1254,23 +1282,51 @@ export function useAppStore() {
   };
 
   const addStaff = (user: UserProfile) => {
+    const validUserId = isValidUuid(user.id) ? user.id : crypto.randomUUID();
+    const validCompanyId = isValidUuid(user.company_id) ? user.company_id : (globalState.company.id || 'a0000000-0000-4000-8000-000000000001');
+    const cleanUser: UserProfile = { ...user, id: validUserId, company_id: validCompanyId };
+
     saveState({
       ...globalState,
-      users: [...globalState.users, user],
+      users: [...globalState.users, cleanUser],
       auditLogs: [
         {
           id: `aud-${Date.now()}`,
           user_name: getCurrentUser().full_name,
           action: 'CREATE_USER',
           entity_type: 'Collaborateur',
-          details: `Création du compte collaborateur : ${user.full_name} (${user.role_code} - ${user.email})`,
+          details: `Création du compte collaborateur : ${cleanUser.full_name} (${cleanUser.role_code} - ${cleanUser.email})`,
           created_at: new Date().toISOString(),
         },
         ...globalState.auditLogs,
       ],
     });
 
-    syncStaffToSupabase(user).catch((e) => console.warn('Background Supabase staff sync failed:', e));
+    syncStaffToSupabase(cleanUser).catch((e) => console.warn('Background Supabase staff sync failed:', e));
+  };
+
+  const updateStaff = (user: UserProfile) => {
+    const validUserId = isValidUuid(user.id) ? user.id : crypto.randomUUID();
+    const validCompanyId = isValidUuid(user.company_id) ? user.company_id : (globalState.company.id || 'a0000000-0000-4000-8000-000000000001');
+    const cleanUser: UserProfile = { ...user, id: validUserId, company_id: validCompanyId };
+
+    saveState({
+      ...globalState,
+      users: globalState.users.map((u) => (u.id === user.id || u.id === cleanUser.id ? cleanUser : u)),
+      auditLogs: [
+        {
+          id: `aud-${Date.now()}`,
+          user_name: getCurrentUser().full_name,
+          action: 'UPDATE_USER',
+          entity_type: 'Collaborateur',
+          details: `Modification du compte collaborateur : ${cleanUser.full_name} (${cleanUser.role_code})`,
+          created_at: new Date().toISOString(),
+        },
+        ...globalState.auditLogs,
+      ],
+    });
+
+    syncStaffToSupabase(cleanUser).catch((e) => console.warn('Background Supabase staff update failed:', e));
   };
 
   const deleteStaff = (userId: string) => {
@@ -1372,6 +1428,7 @@ export function useAppStore() {
     deleteCategory,
     addCustomer,
     addStaff,
+    updateStaff,
     deleteStaff,
     markNotificationRead,
     markAllNotificationsRead,

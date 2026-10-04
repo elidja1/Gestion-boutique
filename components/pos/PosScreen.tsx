@@ -7,6 +7,7 @@ import { formatCurrency, playBeepSound, calculateTieredPrice, normalizePriceTier
 import { PaymentModal } from './PaymentModal';
 import { ReceiptModal } from './ReceiptModal';
 import { WeightPieceModal } from './WeightPieceModal';
+import { CategoryManagementModal } from '@/components/inventory/CategoryManagementModal';
 import {
   Search,
   Barcode,
@@ -42,6 +43,7 @@ export const PosScreen: React.FC = () => {
   // Modals state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
 
   // Weight/Piece Modal state
@@ -419,6 +421,15 @@ export const PosScreen: React.FC = () => {
                   {cat.name}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap bg-blue-50 text-blue-700 hover:bg-blue-100 border border-dashed border-blue-300 flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                title="Ajouter, modifier ou supprimer des groupes / catégories"
+              >
+                <Plus className="w-3.5 h-3.5 text-blue-600" />
+                <span>+ Gérer les Groupes</span>
+              </button>
             </div>
 
             {barcodeFeedback && (
@@ -721,6 +732,12 @@ export const PosScreen: React.FC = () => {
           company={state.company}
         />
       )}
+
+      {/* Category / Group Management Modal */}
+      <CategoryManagementModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+      />
     </div>
   );
 };

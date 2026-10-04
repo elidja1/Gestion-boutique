@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Product, PriceTier } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import { normalizePriceTiers, calculateTieredPrice, formatCurrency } from '@/lib/utils';
+import { CategoryManagementModal } from './CategoryManagementModal';
 import {
   X,
   Package,
@@ -54,7 +55,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   // Tarifs Réduits & Paliers
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
 
+  // Category modal state
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+
   useEffect(() => {
+    if (!isOpen) return;
+
     if (initialProduct) {
       setName(initialProduct.name || '');
       setCategoryId(initialProduct.category_id || state.categories[0]?.id || '');
@@ -100,7 +106,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setCartonStock('');
       setPriceTiers([]);
     }
-  }, [initialProduct, isOpen, state.categories, state.stores]);
+  }, [initialProduct, isOpen]);
 
   // Total stock calculated as sum across all stores
   const calculatedTotalStock = useMemo(() => {
@@ -324,7 +330,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           {/* Collection / Catégorie & Mode de Vente */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="font-bold text-slate-700 block mb-1.5">Collection / Catégorie</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="font-bold text-slate-700 block">Collection / Catégorie</label>
+                <button
+                  type="button"
+                  onClick={() => setIsCatModalOpen(true)}
+                  className="text-blue-600 hover:text-blue-800 font-semibold text-[11px] flex items-center gap-1 transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Gérer Groupes</span>
+                </button>
+              </div>
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
@@ -821,6 +837,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Category / Group Management Sub-modal */}
+      <CategoryManagementModal
+        isOpen={isCatModalOpen}
+        onClose={() => setIsCatModalOpen(false)}
+      />
     </div>
   );
 };

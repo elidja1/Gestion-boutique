@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useAppStore } from '@/lib/store';
 import { Store } from '@/lib/types';
 import { X, Building2, MapPin, Phone, Mail, User, Clock, CheckCircle } from 'lucide-react';
 
@@ -17,6 +18,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({
   onSave,
   initialStore,
 }) => {
+  const { state } = useAppStore();
   const [formData, setFormData] = useState<Partial<Store>>({
     code: '',
     name: '',
@@ -34,7 +36,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({
       setFormData(initialStore);
     } else {
       setFormData({
-        code: `VGM0${Math.floor(5 + Math.random() * 5)}`,
+        code: `BOUTIQUE-0${state.stores.length + 1}`,
         name: '',
         address: '',
         city: 'Cotonou',
@@ -45,7 +47,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({
         is_active: true,
       });
     }
-  }, [initialStore, isOpen]);
+  }, [initialStore, isOpen, state.stores.length]);
 
   if (!isOpen) return null;
 
@@ -53,20 +55,22 @@ export const StoreModal: React.FC<StoreModalProps> = ({
     e.preventDefault();
     if (!formData.name || !formData.code) return;
 
+    const companyId = state.company?.id || initialStore?.company_id || 'a0000000-0000-4000-8000-000000000001';
+
     const storeToSave: Store = {
-      id: initialStore?.id || `store-${Date.now()}`,
-      company_id: initialStore?.company_id || 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      code: formData.code!,
-      name: formData.name!,
-      address: formData.address || '',
-      city: formData.city || 'Cotonou',
-      phone: formData.phone || '',
-      email: formData.email || '',
-      manager_name: formData.manager_name || '',
-      opening_hours: formData.opening_hours || '08:00 - 20:00',
+      id: initialStore?.id || crypto.randomUUID(),
+      company_id: companyId,
+      code: formData.code.trim().toUpperCase(),
+      name: formData.name.trim(),
+      address: formData.address?.trim() || '',
+      city: formData.city?.trim() || 'Cotonou',
+      phone: formData.phone?.trim() || '',
+      email: formData.email?.trim() || '',
+      manager_name: formData.manager_name?.trim() || '',
+      opening_hours: formData.opening_hours?.trim() || '08:00 - 20:30',
       is_active: formData.is_active ?? true,
       employees_count: initialStore?.employees_count || 1,
-      products_count: initialStore?.products_count || 100,
+      products_count: initialStore?.products_count || 0,
       today_sales_count: initialStore?.today_sales_count || 0,
       today_revenue: initialStore?.today_revenue || 0,
     };

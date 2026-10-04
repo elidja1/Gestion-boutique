@@ -6,6 +6,7 @@ import { Product } from '@/lib/types';
 import { formatCurrency, normalizePriceTiers } from '@/lib/utils';
 import { ProductModal } from './ProductModal';
 import { QuickStockModal } from './QuickStockModal';
+import { CategoryManagementModal } from './CategoryManagementModal';
 import {
   Package,
   Plus,
@@ -19,6 +20,7 @@ import {
   AlertTriangle,
   Store as StoreIcon,
   Tag,
+  Layers,
 } from 'lucide-react';
 
 export const ProductCatalog: React.FC = () => {
@@ -27,6 +29,7 @@ export const ProductCatalog: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Quick stock modal state
@@ -93,13 +96,22 @@ export const ProductCatalog: React.FC = () => {
         </div>
 
         {canEdit && (
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nouveau Produit</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsCatModalOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95"
+            >
+              <Layers className="w-4 h-4 text-slate-500" />
+              <span>Gérer les Groupes</span>
+            </button>
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nouveau Produit</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -393,6 +405,12 @@ export const ProductCatalog: React.FC = () => {
         isOpen={isQuickStockOpen}
         product={quickStockProduct}
         onClose={() => setIsQuickStockOpen(false)}
+      />
+
+      {/* Category / Group Management Modal */}
+      <CategoryManagementModal
+        isOpen={isCatModalOpen}
+        onClose={() => setIsCatModalOpen(false)}
       />
     </div>
   );

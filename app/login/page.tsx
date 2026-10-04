@@ -32,7 +32,16 @@ export default function LoginPage() {
 
   // If already authenticated, redirect to main application
   useEffect(() => {
-    if (state.isAuthenticated) {
+    let isAuth = state.isAuthenticated;
+    if (typeof window !== 'undefined' && !isAuth) {
+      try {
+        const authRaw = localStorage.getItem('vgm_auth_session_v4');
+        if (authRaw) {
+          isAuth = JSON.parse(authRaw).isAuthenticated === true;
+        }
+      } catch {}
+    }
+    if (isAuth) {
       router.replace('/');
     }
   }, [state.isAuthenticated, router]);
