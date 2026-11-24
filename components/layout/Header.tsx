@@ -230,23 +230,50 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls */}
       <div className="flex items-center gap-2.5">
-        {/* Supabase Live Sync Status Badge — SUPERADMIN ONLY */}
-        {state.currentRole === 'SUPERADMIN' && (
+        {/* Supabase Live Sync Status Badge — Visible when offline, pending sync, or for management */}
+        {(state.currentRole === 'SUPERADMIN' ||
+          state.currentRole === 'OWNER' ||
+          state.currentRole === 'MANAGER' ||
+          state.syncStatus === 'offline' ||
+          (state.pendingSyncCount || 0) > 0) && (
           <button
             onClick={() => syncWithSupabase()}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              state.syncStatus === 'synced'
+              state.syncStatus === 'synced' && (state.pendingSyncCount || 0) === 0
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
                 : state.syncStatus === 'syncing'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
             }`}
-            title="Synchroniser avec Supabase"
+            title={
+              (state.pendingSyncCount || 0) > 0
+                ? `${state.pendingSyncCount} opération(s) stockée(s) localement en attente de synchronisation`
+                : 'Synchroniser avec la base de données'
+            }
           >
-            <Database className={`w-3.5 h-3.5 ${state.syncStatus === 'syncing' ? 'animate-spin text-blue-600' : 'text-emerald-600'}`} />
+            <Database
+              className={`w-3.5 h-3.5 ${
+                state.syncStatus === 'syncing'
+                  ? 'animate-spin text-blue-600'
+                  : (state.pendingSyncCount || 0) > 0 || state.syncStatus === 'offline'
+                  ? 'text-amber-600'
+                  : 'text-emerald-600'
+              }`}
+            />
             <span className="hidden sm:inline">
-              {state.syncStatus === 'synced' ? 'DB En Ligne' : state.syncStatus === 'syncing' ? 'Sync...' : 'Hors-Ligne'}
+              {state.syncStatus === 'syncing'
+                ? 'Sync...'
+                : (state.pendingSyncCount || 0) > 0
+                ? `${state.pendingSyncCount} en attente`
+                : state.syncStatus === 'offline'
+                ? 'Hors-Ligne'
+                : 'DB En Ligne'}
             </span>
+            {(state.pendingSyncCount || 0) > 0 && (
+              <span className="inline-flex sm:hidden px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px]">
+                {state.pendingSyncCount}
+              </span>
+            )}
           </button>
         )}
 

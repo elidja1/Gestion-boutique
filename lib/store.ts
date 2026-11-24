@@ -61,6 +61,11 @@ import {
   syncDeleteCategoryFromSupabase,
   isValidUuid,
 } from './supabaseSync';
+import {
+  dispatchSyncWithOfflineSupport,
+  flushSyncQueue,
+  getPendingQueueCount,
+} from './offlineQueue';
 
 const LOCAL_STORAGE_KEY = 'vgm_app_state_v4';
 const AUTH_STORAGE_KEY = 'vgm_auth_session_v4';
@@ -87,6 +92,7 @@ export interface AppState {
   isAuthenticated: boolean;
   syncStatus: SyncStatusType;
   lastSyncTime: string | null;
+  pendingSyncCount: number;
 }
 
 export const defaultState: AppState = {
@@ -111,6 +117,7 @@ export const defaultState: AppState = {
   isAuthenticated: false,
   syncStatus: 'idle',
   lastSyncTime: null,
+  pendingSyncCount: 0,
 };
 
 type Listener = (state: AppState) => void;
@@ -183,6 +190,11 @@ function loadState(): AppState {
       };
     });
 
+    state.pendingSyncCount = getPendingQueueCount();
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      state.syncStatus = 'offline';
+    }
+
     return state;
   } catch (e) {
     console.warn('Failed to load state from localStorage', e);
@@ -219,8 +231,21 @@ export function useAppStore() {
   });
 
   const syncWithSupabase = useCallback(async () => {
+    // 0. Offline Guard: do not attempt remote sync if device has no network
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      saveState({
+        ...globalState,
+        syncStatus: 'offline',
+        pendingSyncCount: getPendingQueueCount(),
+      });
+      return { success: false, offline: true };
+    }
+
     saveState({ ...globalState, syncStatus: 'syncing' });
     try {
+      // 1. Drain local offline outbox queue first before taking snapshot
+      await flushSyncQueue();
+
       const snapshot = await fetchFullSupabaseSnapshot();
       if (snapshot && snapshot.company) {
         // Use Supabase data as canonical source of truth when online
@@ -253,8 +278,13 @@ export function useAppStore() {
           effectiveUsers = [...normalizedUsers, ...localOnlyUsers];
         }
 
+        // Merge remote products with local-only products so newly created offline products aren't wiped
+        const remoteProdIds = new Set(remoteProducts.map((p) => p.id));
+        const localOnlyProducts = (globalState.products || []).filter((p) => !remoteProdIds.has(p.id));
+        const allProducts = [...remoteProducts, ...localOnlyProducts];
+
         // Normalize products stock, carton & price_tiers
-        const normalizedProducts = remoteProducts.map((p) => {
+        const normalizedProducts = allProducts.map((p) => {
           const stockMap: Record<string, number> = { ...(p.stock_by_store || {}) };
           const hasExistingStock = Object.keys(stockMap).length > 0;
           effectiveStores.forEach((st) => {
@@ -284,6 +314,50 @@ export function useAppStore() {
             carton_stock: cartonStock,
           };
         });
+
+        // Safe Merge for Sales: never overwrite unsynced local sales
+        const remoteSales = snapshot.sales !== undefined ? snapshot.sales : globalState.sales;
+        const remoteSaleIds = new Set(remoteSales.map((s) => s.id));
+        const localOnlySales = (globalState.sales || []).filter((s) => !remoteSaleIds.has(s.id));
+        const effectiveSales = [...localOnlySales, ...remoteSales].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        // Safe Merge for Expenses: never overwrite unsynced local expenses
+        const remoteExpenses = snapshot.expenses !== undefined ? snapshot.expenses : globalState.expenses;
+        const remoteExpIds = new Set(remoteExpenses.map((e) => e.id));
+        const localOnlyExpenses = (globalState.expenses || []).filter((e) => !remoteExpIds.has(e.id));
+        const effectiveExpenses = [...localOnlyExpenses, ...remoteExpenses].sort(
+          (a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()
+        );
+
+        // Safe Merge for Transfers
+        const remoteTransferIds = new Set(remoteTransfers.map((t) => t.id));
+        const localOnlyTransfers = (globalState.transfers || []).filter((t) => !remoteTransferIds.has(t.id));
+        const effectiveTransfers = [...localOnlyTransfers, ...remoteTransfers];
+
+        // Safe Merge for Movements
+        const remoteMoveIds = new Set(remoteMovements.map((m) => m.id));
+        const localOnlyMovements = (globalState.movements || []).filter((m) => !remoteMoveIds.has(m.id));
+        const effectiveMovements = [...localOnlyMovements, ...remoteMovements].slice(0, 500);
+
+        // Safe Merge for Cash Sessions
+        const remoteCash = snapshot.cashSessions !== undefined ? snapshot.cashSessions : globalState.cashSessions;
+        const remoteCashIds = new Set(remoteCash.map((cs) => cs.id));
+        const localOnlyCash = (globalState.cashSessions || []).filter((cs) => !remoteCashIds.has(cs.id));
+        const effectiveCashSessions = [...localOnlyCash, ...remoteCash];
+
+        // Safe Merge for Customers
+        const remoteCusts = snapshot.customers !== undefined ? snapshot.customers : globalState.customers;
+        const remoteCustIds = new Set(remoteCusts.map((c) => c.id));
+        const localOnlyCusts = (globalState.customers || []).filter((c) => !remoteCustIds.has(c.id));
+        const effectiveCustomers = [...remoteCusts, ...localOnlyCusts];
+
+        // Safe Merge for Categories
+        const remoteCats = snapshot.categories !== undefined ? snapshot.categories : globalState.categories;
+        const remoteCatIds = new Set(remoteCats.map((c) => c.id));
+        const localOnlyCats = (globalState.categories || []).filter((c) => !remoteCatIds.has(c.id));
+        const effectiveCategories = [...remoteCats, ...localOnlyCats];
 
         // Sync HTML banner if broadcasted via Supabase
         const bannerNotif = remoteNotifs.find((n) => n.id === '00000000-0000-4000-8000-0000000000bb' || (n.type as string) === 'SYSTEM_BANNER');
@@ -325,28 +399,37 @@ export function useAppStore() {
           company: snapshot.company,
           stores: effectiveStores,
           users: effectiveUsers,
-          categories: snapshot.categories !== undefined ? snapshot.categories : globalState.categories,
+          categories: effectiveCategories,
           suppliers: snapshot.suppliers !== undefined ? snapshot.suppliers : globalState.suppliers,
           products: normalizedProducts,
-          customers: snapshot.customers !== undefined ? snapshot.customers : globalState.customers,
-          sales: snapshot.sales !== undefined ? snapshot.sales : globalState.sales,
-          transfers: remoteTransfers,
-          movements: remoteMovements,
-          cashSessions: snapshot.cashSessions !== undefined ? snapshot.cashSessions : globalState.cashSessions,
-          expenses: snapshot.expenses !== undefined ? snapshot.expenses : globalState.expenses,
+          customers: effectiveCustomers,
+          sales: effectiveSales,
+          transfers: effectiveTransfers,
+          movements: effectiveMovements,
+          cashSessions: effectiveCashSessions,
+          expenses: effectiveExpenses,
           notifications: remoteNotifs,
           auditLogs: snapshot.auditLogs !== undefined ? snapshot.auditLogs : globalState.auditLogs,
           syncStatus: 'synced',
           lastSyncTime: new Date().toLocaleTimeString(),
+          pendingSyncCount: getPendingQueueCount(),
         });
         return { success: true };
       } else {
-        saveState({ ...globalState, syncStatus: 'offline' });
+        saveState({
+          ...globalState,
+          syncStatus: typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error',
+          pendingSyncCount: getPendingQueueCount(),
+        });
         return { success: false };
       }
     } catch (e) {
       console.warn('Supabase sync error:', e);
-      saveState({ ...globalState, syncStatus: 'error' });
+      saveState({
+        ...globalState,
+        syncStatus: typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error',
+        pendingSyncCount: getPendingQueueCount(),
+      });
       return { success: false };
     }
   }, []);
@@ -367,15 +450,50 @@ export function useAppStore() {
     // Periodic polling for admin/manager/owner: detect new sales from collaborators in near-real-time
     const POLL_INTERVAL = 30_000; // 30 seconds
     const pollingTimer = setInterval(() => {
+      // Avoid polling if device is currently offline
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        return;
+      }
       const role = globalState.currentRole;
       if (role === 'OWNER' || role === 'MANAGER' || role === 'SUPERADMIN') {
         syncWithSupabase();
       }
     }, POLL_INTERVAL);
 
+    // Network status listener: automatically trigger outbox drain upon reconnection
+    const handleOnline = async () => {
+      console.info('[Store] Réseau rétabli. Vidage de la file d\'attente...');
+      saveState({ ...globalState, syncStatus: 'syncing' });
+      await flushSyncQueue();
+      syncWithSupabase();
+    };
+
+    const handleOffline = () => {
+      console.warn('[Store] Réseau indisponible. Passage en mode hors-ligne.');
+      saveState({ ...globalState, syncStatus: 'offline', pendingSyncCount: getPendingQueueCount() });
+    };
+
+    const handleQueueUpdated = (e: any) => {
+      const count = e.detail?.count ?? getPendingQueueCount();
+      if (globalState.pendingSyncCount !== count) {
+        saveState({ ...globalState, pendingSyncCount: count });
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      window.addEventListener('vgm-sync-queue-updated', handleQueueUpdated);
+    }
+
     return () => {
       listeners.delete(listener);
       clearInterval(pollingTimer);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+        window.removeEventListener('vgm-sync-queue-updated', handleQueueUpdated);
+      }
     };
   }, [syncWithSupabase]);
 
@@ -668,9 +786,13 @@ export function useAppStore() {
       auditLogs: [newAudit, ...globalState.auditLogs],
     });
 
-    // Asynchronously sync to Supabase (with updated stock and movements)
-    syncSaleToSupabase(sale, updatedProducts).catch((e) => console.warn('Background Supabase sale sync failed:', e));
-    syncNotificationToSupabase(saleNotification).catch((e) => console.warn('Notification sync failed:', e));
+    // Asynchronously sync to Supabase (with automatic offline outbox retry)
+    dispatchSyncWithOfflineSupport('SYNC_SALE', { sale, updatedProducts }, () =>
+      syncSaleToSupabase(sale, updatedProducts)
+    );
+    dispatchSyncWithOfflineSupport('SYNC_NOTIFICATION', saleNotification, () =>
+      syncNotificationToSupabase(saleNotification)
+    );
 
     const sellerRole = globalState.currentRole;
     const isAdminSeller = sellerRole === 'OWNER' || sellerRole === 'MANAGER' || sellerRole === 'SUPERADMIN';
@@ -712,9 +834,11 @@ export function useAppStore() {
           };
         });
 
-        // Sync each low-stock notif to Supabase (admin on other devices will also be alerted on next sync)
+        // Sync each low-stock notif to Supabase
         lowStockNotifs.forEach((notif) => {
-          syncNotificationToSupabase(notif).catch(() => {});
+          dispatchSyncWithOfflineSupport('SYNC_NOTIFICATION', notif, () =>
+            syncNotificationToSupabase(notif)
+          );
           triggerDesktopPushAndSound({
             title: notif.title,
             body: notif.message,
@@ -767,7 +891,9 @@ export function useAppStore() {
       ],
     });
 
-    syncProductToSupabase(normalizedProduct).catch((e) => console.warn('Background Supabase product sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_PRODUCT', normalizedProduct, () =>
+      syncProductToSupabase(normalizedProduct)
+    );
   };
 
   const updateProduct = (product: Product) => {
@@ -806,7 +932,9 @@ export function useAppStore() {
       ],
     });
 
-    syncProductToSupabase(normalizedProduct).catch((e) => console.warn('Background Supabase product sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_PRODUCT', normalizedProduct, () =>
+      syncProductToSupabase(normalizedProduct)
+    );
   };
 
   const deleteProduct = (productId: string) => {
@@ -827,7 +955,9 @@ export function useAppStore() {
       ],
     });
 
-    syncDeleteProductFromSupabase(productId).catch((e) => console.warn('Background Supabase product delete failed:', e));
+    dispatchSyncWithOfflineSupport('DELETE_PRODUCT', { productId }, () =>
+      syncDeleteProductFromSupabase(productId)
+    );
   };
 
   const adjustStock = (
@@ -901,7 +1031,9 @@ export function useAppStore() {
       ],
     });
 
-    syncProductToSupabase(updatedProduct).catch((e) => console.warn('Background Supabase product sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_PRODUCT', updatedProduct, () =>
+      syncProductToSupabase(updatedProduct)
+    );
   };
 
   const addTransfer = (transfer: StockTransfer) => {
@@ -921,7 +1053,9 @@ export function useAppStore() {
       ],
     });
 
-    syncTransferToSupabase(transfer).catch((e) => console.warn('Transfer sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_TRANSFER', transfer, () =>
+      syncTransferToSupabase(transfer)
+    );
   };
 
   const updateTransferStatus = (transferId: string, status: TransferStatus) => {
@@ -969,7 +1103,9 @@ export function useAppStore() {
       ],
     });
 
-    syncTransferToSupabase(updatedTransfer).catch((e) => console.warn('Transfer update sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_TRANSFER', updatedTransfer, () =>
+      syncTransferToSupabase(updatedTransfer)
+    );
   };
 
   const addExpense = (expense: Expense) => {
@@ -1003,7 +1139,9 @@ export function useAppStore() {
       ],
     });
 
-    syncExpenseToSupabase(expense).catch((e) => console.warn('Background Supabase expense sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_EXPENSE', expense, () =>
+      syncExpenseToSupabase(expense)
+    );
   };
 
   const openCashSession = (storeIdOrSession: string | CashSession, initialFloat: number = 0) => {
@@ -1049,7 +1187,9 @@ export function useAppStore() {
       ],
     });
 
-    syncCashSessionToSupabase(session).catch((e) => console.warn('Background Supabase cash session sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_CASH_SESSION', session, () =>
+      syncCashSessionToSupabase(session)
+    );
   };
 
   const closeCashSession = (sessionId: string, closingBalanceReal: number, discrepancyReason?: string) => {
@@ -1092,7 +1232,9 @@ export function useAppStore() {
 
     const closed = updatedSessions.find((s) => s.id === sessionId);
     if (closed) {
-      syncCashSessionToSupabase(closed).catch((e) => console.warn('Background Supabase cash close sync failed:', e));
+      dispatchSyncWithOfflineSupport('SYNC_CASH_SESSION', closed, () =>
+        syncCashSessionToSupabase(closed)
+      );
     }
   };
 
@@ -1117,7 +1259,9 @@ export function useAppStore() {
       ],
     });
 
-    syncStoreToSupabase(cleanStore).catch((e) => console.warn('Background Supabase store sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_STORE', cleanStore, () =>
+      syncStoreToSupabase(cleanStore)
+    );
   };
 
   const updateStore = (store: Store) => {
@@ -1141,7 +1285,9 @@ export function useAppStore() {
       ],
     });
 
-    syncStoreToSupabase(cleanStore).catch((e) => console.warn('Background Supabase store update failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_STORE', cleanStore, () =>
+      syncStoreToSupabase(cleanStore)
+    );
   };
 
   const deleteStore = (storeId: string) => {
@@ -1197,7 +1343,9 @@ export function useAppStore() {
       ],
     });
 
-    syncDeleteStoreFromSupabase(storeId).catch((e) => console.warn('Background Supabase store delete failed:', e));
+    dispatchSyncWithOfflineSupport('DELETE_STORE', { storeId }, () =>
+      syncDeleteStoreFromSupabase(storeId)
+    );
   };
 
   const addCategory = (category: Category) => {
@@ -1216,7 +1364,9 @@ export function useAppStore() {
         ...globalState.auditLogs,
       ],
     });
-    syncCategoryToSupabase(category).catch((e) => console.warn('Background Supabase category sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_CATEGORY', category, () =>
+      syncCategoryToSupabase(category)
+    );
   };
 
   const updateCategory = (category: Category) => {
@@ -1235,7 +1385,9 @@ export function useAppStore() {
         ...globalState.auditLogs,
       ],
     });
-    syncCategoryToSupabase(category).catch((e) => console.warn('Background Supabase category update failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_CATEGORY', category, () =>
+      syncCategoryToSupabase(category)
+    );
   };
 
   const deleteCategory = (categoryId: string) => {
@@ -1260,7 +1412,9 @@ export function useAppStore() {
         ...globalState.auditLogs,
       ],
     });
-    syncDeleteCategoryFromSupabase(categoryId).catch((e) => console.warn('Background Supabase category delete failed:', e));
+    dispatchSyncWithOfflineSupport('DELETE_CATEGORY', { categoryId }, () =>
+      syncDeleteCategoryFromSupabase(categoryId)
+    );
   };
 
   const addCustomer = (customer: Customer) => {
@@ -1302,7 +1456,9 @@ export function useAppStore() {
       ],
     });
 
-    syncStaffToSupabase(cleanUser).catch((e) => console.warn('Background Supabase staff sync failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_STAFF', cleanUser, () =>
+      syncStaffToSupabase(cleanUser)
+    );
   };
 
   const updateStaff = (user: UserProfile) => {
@@ -1326,7 +1482,9 @@ export function useAppStore() {
       ],
     });
 
-    syncStaffToSupabase(cleanUser).catch((e) => console.warn('Background Supabase staff update failed:', e));
+    dispatchSyncWithOfflineSupport('SYNC_STAFF', cleanUser, () =>
+      syncStaffToSupabase(cleanUser)
+    );
   };
 
   const deleteStaff = (userId: string) => {
@@ -1353,7 +1511,9 @@ export function useAppStore() {
       ],
     });
 
-    syncDeleteStaffFromSupabase(userId).catch((e) => console.warn('Background Supabase staff delete failed:', e));
+    dispatchSyncWithOfflineSupport('DELETE_STAFF', { userId }, () =>
+      syncDeleteStaffFromSupabase(userId)
+    );
   };
 
   const markNotificationRead = (notifId: string) => {
@@ -1375,7 +1535,9 @@ export function useAppStore() {
       ...globalState,
       notifications: globalState.notifications.filter((n) => n.id !== notifId),
     });
-    syncDeleteNotificationFromSupabase(notifId).catch((e) => console.warn('Delete notif sync failed:', e));
+    dispatchSyncWithOfflineSupport('DELETE_NOTIFICATION', { notifId }, () =>
+      syncDeleteNotificationFromSupabase(notifId)
+    );
   };
 
   const clearAllNotifications = () => {

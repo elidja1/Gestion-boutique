@@ -345,16 +345,32 @@ export const PosScreen: React.FC = () => {
           </div>
         </div>
 
-        {(currentUser.role_code === 'OWNER' || currentUser.role_code === 'MANAGER' || currentUser.role_code === 'SUPERADMIN') && (
-          <button
-            type="button"
-            onClick={() => setActiveStoreId('ALL')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Changer de Boutique</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {(state.syncStatus === 'offline' || (state.pendingSyncCount || 0) > 0) && (
+            <span
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold"
+              title="Vos ventes sont conservées en sécurité dans la mémoire locale et seront envoyées automatiquement dès le retour d'Internet."
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span>
+                {(state.pendingSyncCount || 0) > 0
+                  ? `${state.pendingSyncCount} vente(s) en attente (Sauvegardées)`
+                  : 'Mode Hors-Ligne Sécurisé'}
+              </span>
+            </span>
+          )}
+
+          {(currentUser.role_code === 'OWNER' || currentUser.role_code === 'MANAGER' || currentUser.role_code === 'SUPERADMIN') && (
+            <button
+              type="button"
+              onClick={() => setActiveStoreId('ALL')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Changer de Boutique</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* POS Layout */}
